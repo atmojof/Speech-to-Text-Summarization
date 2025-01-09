@@ -1,96 +1,127 @@
+import os
+from dotenv import load_dotenv
 import streamlit as st
 import azure.cognitiveservices.speech as speechsdk
-from transformers import pipeline, WhisperProcessor, WhisperForConditionalGeneration
-import openai
-import os
+from openai import OpenAI
+import tempfile
+from pydub import AudioSegment
 
-# Configuration for Azure API
-AZURE_SPEECH_KEY = "YOUR_AZURE_SPEECH_KEY"
-AZURE_SERVICE_REGION = "YOUR_SERVICE_REGION"
-AZURE_OPENAI_KEY = "YOUR_AZURE_OPENAI_KEY"
+# Load environment variables from .env file
+load_dotenv()
+AZURE_SPEECH_KEY = os.getenv("AZURE_SPEECH_KEY")
+AZURE_SERVICE_REGION = os.getenv("AZURE_SERVICE_REGION")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Function: Speech-to-Text with Azure
+# Initialize OpenAI API
+openai_api = OpenAI(api_key=OPENAI_API_KEY)
+
+def save_audio_file(uploaded_file):
+    """Save the uploaded audio file to a temporary location."""
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    audio = AudioSegment.from_file(uploaded_file)
+    audio.export(temp_file.name, format="wav")
+    return temp_file.name
+
 def azure_speech_to_text(audio_path):
+    """Transcribe audio using Azure Speech Services."""
     speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SERVICE_REGION)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
-    speech_recognizer = speechsdk.ConversationTranscriber(speech_config=speech_config, audio_config=audio_config)
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    all_transcriptions = []
+    results = []
 
     def recognized_handler(evt):
         if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            speaker_id = evt.result.speaker_id or "Unknown"
-            text = evt.result.text
-            all_transcriptions.append(f"Speaker {speaker_id}: {text}")
+            st.write(f"DEBUG: Recognized text: {evt.result.text}")  # Debugging line
+            results.append((evt.result.offset_in_ticks / 10_000_000, evt.result.text))  # Convert ticks to seconds
+
+    def session_stopped_handler(evt):
+        st.write("DEBUG: Session stopped.")  # Debugging line
+
+    def canceled_handler(evt):
+        st.write(f"DEBUG: Canceled reason: {evt.reason}")  # Debugging line
 
     speech_recognizer.recognized.connect(recognized_handler)
+    speech_recognizer.session_stopped.connect(session_stopped_handler)
+    speech_recognizer.canceled.connect(canceled_handler)
 
-    try:
-        speech_recognizer.start_transcribing()
-        speech_recognizer.stop_transcribing()
-    except Exception as e:
-        return f"Error during Azure transcription: {e}"
+    st.write("DEBUG: Starting recognition.")  # Debugging line
+    speech_recognizer.start_continuous_recognition()
 
-    return "\n".join(all_transcriptions)
+    # Wait for recognition to complete
+    import time
+    time.sleep(10)  # Wait for a fixed duration; adjust as needed
 
-# Function: Speech-to-Text with Whisper
-def whisper_speech_to_text(audio_path):
-    try:
-        # Initialize Whisper model
-        model = pipeline("automatic-speech-recognition", model="openai/whisper-base")
-        transcription = model(audio_path)
-        return transcription["text"]
-    except Exception as e:
-        return f"Error during Whisper transcription: {e}"
+    speech_recognizer.stop_continuous_recognition()
 
-# Function: Text Summarization
-def summarize_text(input_text):
-    openai.api_key = AZURE_OPENAI_KEY
-    try:
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=f"Summarize the following meeting transcript:\n\n{input_text}",
-            max_tokens=100,
-            temperature=0.5
-        )
-        return response.choices[0].text.strip()
-    except Exception as e:
-        return f"Error during summarization: {e}"
+    if not results:
+        st.write("DEBUG: No results captured.")  # Debugging line
 
-# Streamlit UI
-st.title("Speech-to-Text with Summarization")
-st.write("Upload an audio file to transcribe and summarize its content. Choose your preferred model for transcription.")
+    return [(offset, text) for offset, text in results]
 
-# Choose the model
-model_choice = st.radio("Choose Speech-to-Text Model:", ("Azure", "Whisper"))
+def azure_microphone_to_text():
+    """Transcribe live audio from the microphone using Azure Speech Services."""
+    speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SERVICE_REGION)
+    audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-# Upload audio file
-uploaded_file = st.file_uploader("Upload Audio File (e.g., .m4a, .wav)", type=["m4a", "wav", "mp3"])
+    result = speech_recognizer.recognize_once_async().get()
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        return [(0, result.text)]  # Single result with no offset
+    elif result.reason == speechsdk.ResultReason.NoMatch:
+        return "No speech could be recognized."
+    elif result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = result.cancellation_details
+        return f"Speech Recognition canceled: {cancellation_details.reason}"
 
-if uploaded_file:
-    # Save uploaded file to a temporary path
-    audio_path = os.path.join("temp_audio", uploaded_file.name)
-    os.makedirs("temp_audio", exist_ok=True)
-    with open(audio_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
+def summarize_text(text):
+    """Summarize text using OpenAI GPT."""
+    response = openai_api.Completion.create(
+        model="text-davinci-003",
+        prompt=f"Summarize the following text:\n{text}",
+        max_tokens=150
+    )
+    return response.choices[0].text.strip()
 
-    # Perform Speech-to-Text
-    st.write(f"### Transcription in Progress using {model_choice}...")
-    if model_choice == "Azure":
-        text_result = azure_speech_to_text(audio_path)
-    elif model_choice == "Whisper":
-        text_result = whisper_speech_to_text(audio_path)
+# Streamlit App
+st.title("Speech-to-Text Transcription and Summarization")
 
-    # Display transcription results
-    if text_result:
+# Input Method Selection
+input_method = st.radio("Choose Input Method", ("Upload File", "Use Microphone"))
+
+if input_method == "Upload File":
+    uploaded_file = st.file_uploader("Upload Audio File", type=["wav", "mp3", "m4a"])
+else:
+    st.write("Using Microphone for real-time transcription.")
+
+# Model Selection
+model_choice = st.radio("Choose Transcription Model", ("Azure", "OpenAI"))
+
+# Submit Button
+if st.button("Submit"):
+    transcription_result = ""
+    summary_result = ""
+
+    if input_method == "Upload File" and uploaded_file:
+        audio_path = save_audio_file(uploaded_file)
+
+        if model_choice == "Azure":
+            transcription_result = azure_speech_to_text(audio_path)
+        else:
+            transcription_result = summarize_text(openai_api.transcribe(audio_path))
+
+    elif input_method == "Use Microphone":
+        if model_choice == "Azure":
+            transcription_result = azure_microphone_to_text()
+
+    # Display Results
+    if transcription_result:
         st.write("### Transcription Result:")
-        st.text_area("Transcribed Text", text_result, height=300)
+        for timestamp, text in transcription_result:
+            st.write(f"[{timestamp:.2f}s] {text}")
 
-        # Perform Summarization
-        st.write("### Summarization in Progress...")
-        summary_result = summarize_text(text_result)
         st.write("### Summary Result:")
-        st.text_area("Summary Text", summary_result, height=150)
-
-    # Cleanup temporary audio file
-    os.remove(audio_path)
+        summary_result = summarize_text(" ".join(text for _, text in transcription_result))
+        st.write(summary_result)
+    else:
+        st.write("No transcription result available.")
