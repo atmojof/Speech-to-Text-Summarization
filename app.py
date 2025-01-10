@@ -15,113 +15,118 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Initialize OpenAI API
 openai_api = OpenAI(api_key=OPENAI_API_KEY)
 
-def save_audio_file(uploaded_file):
-    """Save the uploaded audio file to a temporary location."""
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
-    audio = AudioSegment.from_file(uploaded_file)
-    audio.export(temp_file.name, format="wav")
-    return temp_file.name
 
-def azure_speech_to_text(audio_path):
-    """Transcribe audio using Azure Speech Services."""
+
+# Function to convert m4a to wav using temp file
+def convert_m4a_to_wav(input_file):
+    audio = AudioSegment.from_file(input_file)
+    temp_wav_path = "./temp_audio.wav"
+    audio.export(temp_wav_path, format="wav")
+    return temp_wav_path
+
+# Function to transcribe with segment timestamps (Azure)
+def recognize_with_segment_timestamps(audio_file_path, language):
+    #AZURE_SPEECH_KEY = "your_speech_service_key"
+    #AZURE_SERVICE_REGION = "your_service_region"
+
     speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SERVICE_REGION)
-    audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
+    speech_config.speech_recognition_language = language
+
+    # Request detailed output
+    speech_config.output_format = speechsdk.OutputFormat.Detailed
+
+    audio_config = speechsdk.audio.AudioConfig(filename=audio_file_path)
     speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    results = []
+    transcriptions = []
 
-    def recognized_handler(evt):
-        if evt.result.reason == speechsdk.ResultReason.RecognizedSpeech:
-            st.write(f"DEBUG: Recognized text: {evt.result.text}")  # Debugging line
-            results.append((evt.result.offset_in_ticks / 10_000_000, evt.result.text))  # Convert ticks to seconds
+    print("Processing the audio file for transcription with timestamps...")
 
-    def session_stopped_handler(evt):
-        st.write("DEBUG: Session stopped.")  # Debugging line
+    def recognized_callback(evt):
+        # Access the detailed recognition result
+        result_json = evt.result.json
+        result_dict = eval(result_json)  # Convert JSON string to a dictionary
 
-    def canceled_handler(evt):
-        st.write(f"DEBUG: Canceled reason: {evt.reason}")  # Debugging line
+        recognized_text = result_dict["DisplayText"]
+        offset = result_dict["Offset"]  # Start time in 100-nanoseconds
+        duration = result_dict["Duration"]  # Duration in 100-nanoseconds
 
-    speech_recognizer.recognized.connect(recognized_handler)
-    speech_recognizer.session_stopped.connect(session_stopped_handler)
-    speech_recognizer.canceled.connect(canceled_handler)
+        # Convert offset to MM:SS format
+        start_seconds = offset / 10**7
+        start_minutes = int(start_seconds // 60)
+        start_seconds = int(start_seconds % 60)
 
-    st.write("DEBUG: Starting recognition.")  # Debugging line
+        # Store transcription with timestamp
+        transcriptions.append(f"[{start_minutes:02}:{start_seconds:02}] {recognized_text}")
+
+        # Update the transcription text area in Streamlit
+        st.session_state.transcription_text += f"[{start_minutes:02}:{start_seconds:02}] {recognized_text}\n"
+        st.text_area("Transcription", st.session_state.transcription_text, height=300)
+
+    done = False
+
+    def stop_cb(evt):
+        nonlocal done
+        done = True
+
+    # Connect callbacks
+    speech_recognizer.recognized.connect(recognized_callback)
+    speech_recognizer.session_stopped.connect(stop_cb)
+    speech_recognizer.canceled.connect(stop_cb)
+
+    # Start continuous recognition
     speech_recognizer.start_continuous_recognition()
-
-    # Wait for recognition to complete
-    import time
-    time.sleep(10)  # Wait for a fixed duration; adjust as needed
-
+    while not done:
+        pass
     speech_recognizer.stop_continuous_recognition()
 
-    if not results:
-        st.write("DEBUG: No results captured.")  # Debugging line
+    return "\n".join(transcriptions)
 
-    return [(offset, text) for offset, text in results]
+# Streamlit UI
+def main():
+    st.title("Audio Transcription")
 
-def azure_microphone_to_text():
-    """Transcribe live audio from the microphone using Azure Speech Services."""
-    speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SERVICE_REGION)
-    audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+    # Initialize session state for transcription text
+    if "transcription_text" not in st.session_state:
+        st.session_state.transcription_text = ""
 
-    result = speech_recognizer.recognize_once_async().get()
-    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        return [(0, result.text)]  # Single result with no offset
-    elif result.reason == speechsdk.ResultReason.NoMatch:
-        return "No speech could be recognized."
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        return f"Speech Recognition canceled: {cancellation_details.reason}"
+    # Language selection (human-readable names with language codes)
+    language_dict = {
+        "id-ID": "Indonesian (Indonesia)",
+        "en-US": "English (US)",
+        "es-ES": "Spanish (Spain)",
+        "fr-FR": "French (France)"
+    }
+    language_choice = st.selectbox("Choose Language", list(language_dict.values()))
+    
+    # Get the language code from the selected language
+    language_code = list(language_dict.keys())[list(language_dict.values()).index(language_choice)]
 
-def summarize_text(text):
-    """Summarize text using OpenAI GPT."""
-    response = openai_api.Completion.create(
-        model="text-davinci-003",
-        prompt=f"Summarize the following text:\n{text}",
-        max_tokens=150
-    )
-    return response.choices[0].text.strip()
+    # Filter to choose file type
+    audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "x-m4a"])
 
-# Streamlit App
-st.title("Speech-to-Text Transcription and Summarization")
-
-# Input Method Selection
-input_method = st.radio("Choose Input Method", ("Upload File", "Use Microphone"))
-
-if input_method == "Upload File":
-    uploaded_file = st.file_uploader("Upload Audio File", type=["wav", "mp3", "m4a"])
-else:
-    st.write("Using Microphone for real-time transcription.")
-
-# Model Selection
-model_choice = st.radio("Choose Transcription Model", ("Azure", "OpenAI"))
-
-# Submit Button
-if st.button("Submit"):
-    transcription_result = ""
-    summary_result = ""
-
-    if input_method == "Upload File" and uploaded_file:
-        audio_path = save_audio_file(uploaded_file)
-
-        if model_choice == "Azure":
-            transcription_result = azure_speech_to_text(audio_path)
+    if audio_file:
+        if audio_file.type in ["audio/m4a", "audio/x-m4a"]:
+            # Convert m4a to wav
+            st.write("Converting audio file...")
+            audio_file_path = convert_m4a_to_wav(audio_file)
         else:
-            transcription_result = summarize_text(openai_api.transcribe(audio_path))
+            # Save audio file as .wav
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_wav_file:
+                with open(temp_wav_file.name, "wb") as f:
+                    f.write(audio_file.getbuffer())
+                audio_file_path = temp_wav_file.name
 
-    elif input_method == "Use Microphone":
-        if model_choice == "Azure":
-            transcription_result = azure_microphone_to_text()
+        # Submit button to trigger the transcription
+        if st.button("Submit"):
+            st.write("Transcribing...")
+            transcription_result = recognize_with_segment_timestamps(audio_file_path, language_code)
+            st.subheader("Transcription Result")
+            st.text_area("", transcription_result, height=300)
 
-    # Display Results
-    if transcription_result:
-        st.write("### Transcription Result:")
-        for timestamp, text in transcription_result:
-            st.write(f"[{timestamp:.2f}s] {text}")
+            # Clean up the temporary file
+            os.remove(audio_file_path)
 
-        st.write("### Summary Result:")
-        summary_result = summarize_text(" ".join(text for _, text in transcription_result))
-        st.write(summary_result)
-    else:
-        st.write("No transcription result available.")
+# Run Streamlit app
+if __name__ == "__main__":
+    main()
