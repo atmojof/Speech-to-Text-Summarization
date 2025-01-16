@@ -88,22 +88,19 @@ def recognize_with_segment_timestamps(audio_file_path, language):
 #================================================================>
 def summarize_transcription(transcription_text, language):
     try:
-        # Prompt for summarization
+        # Create the summarization prompt
         prompt = f"Summarize the following text in {language}:\n\n{transcription_text}"
-        
-        # Use the new API interface
-        response = openai.Chat.create(
-            model="gpt-4",  # Or "gpt-3.5-turbo"
-            messages=[
-                {"role": "system", "content": "You are an assistant specializing in text summarization."},
-                {"role": "user", "content": prompt}
-            ],
-            max_tokens=200,  # Adjust token count for the desired summary length
+
+        # Use the Completion endpoint
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # Adjust to "gpt-3.5-turbo-instruct" if available
+            prompt=prompt,
+            max_tokens=150,  # Adjust as needed
             temperature=0.5
         )
-        
-        # Extract the summary
-        summary = response.choices[0].message.content.strip()
+
+        # Extract and return the summary
+        summary = response.choices[0].text.strip()
         return summary
 
     except OpenAIError as e:
@@ -138,11 +135,15 @@ def main():
     # Filter to choose file type
     audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "x-m4a", "mp4"])
     #st.write(audio_file.type)
-
+    
+    # Play the uploaded audio file
+    st.audio(audio_file, format=audio_file.type)
+    
     # Submit
     submitted = st.button("Submit")
 
     if audio_file:
+        
         if audio_file.type in ["audio/m4a", "audio/x-m4a", "audio/mp4", "video/mp4"]:
             # Convert m4a to wav
             with st.spinner("Converting audio file..."):
