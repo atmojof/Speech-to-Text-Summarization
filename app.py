@@ -103,10 +103,11 @@ def main():
     language_code = list(language_dict.keys())[list(language_dict.values()).index(language_choice)]
 
     # Filter to choose file type
-    audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "x-m4a"])
+    audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "x-m4a", "mp4"])
+    #st.write(audio_file.type)
 
     if audio_file:
-        if audio_file.type in ["audio/m4a", "audio/x-m4a"]:
+        if audio_file.type in ["audio/m4a", "audio/x-m4a", "audio/mp4", "video/mp4"]:
             # Convert m4a to wav
             st.write("Converting audio file...")
             audio_file_path = convert_m4a_to_wav(audio_file)
@@ -123,7 +124,7 @@ def main():
             transcription_result = recognize_with_segment_timestamps(audio_file_path, language_code)
             st.subheader("Transcription Result")
             st.text_area("", transcription_result, height=300)
-
+            
             # Clean up the temporary file
             os.remove(audio_file_path)
 
