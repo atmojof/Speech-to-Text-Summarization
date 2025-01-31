@@ -27,8 +27,8 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # Azure Blob Storage configuration
-AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=smlbird;AccountKey=yE8Ps/0tzr9JxaHVEsG70SG8RwkBap3PJ+7Y4wOcyLb3Qtg7+1DLd/xY+IRxNnilJUTjfLq2BYRM+AStdEPHjw==;EndpointSuffix=core.windows.net"
-CONTAINER_NAME = "input"
+AZURE_BLOB_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=smlbird;AccountKey=yE8Ps/0tzr9JxaHVEsG70SG8RwkBap3PJ+7Y4wOcyLb3Qtg7+1DLd/xY+IRxNnilJUTjfLq2BYRM+AStdEPHjw==;EndpointSuffix=core.windows.net"
+BLOB_CONTAINER_NAME = "input"
 
 # Initialize OpenAI API
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -42,15 +42,28 @@ def convert_m4a_to_wav(input_file):
     audio.export(temp_wav_path, format="wav")
     return temp_wav_path
 
+def convert_audio(file_path, target_format="wav"):
+    audio = AudioSegment.from_file(file_path)
+    converted_path = file_path.replace(file_path.split(".")[-1], target_format)
+    audio.export(converted_path, format=target_format)
+    return converted_path
+
+def upload_to_blob(file_path, blob_name):
+    blob_service_client = BlobServiceClient.from_connection_string(AZURE_BLOB_CONNECTION_STRING)
+    blob_client = blob_service_client.get_blob_client(container=BLOB_CONTAINER_NAME, blob=blob_name)
+    with open(file_path, "rb") as data:
+        blob_client.upload_blob(data, overwrite=True)
+    return blob_client.url
+
 # Function to upload file to Azure Blob Storage and get the URL =================================================================
 def upload_to_blob_storage(file_path, file_name):
-    blob_service_client = BlobServiceClient.from_connection_string(AZURE_STORAGE_CONNECTION_STRING)
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=file_name)
+    blob_service_client = BlobServiceClient.from_connection_string(AZURE_BLOB_CONNECTION_STRING)
+    blob_client = blob_service_client.get_blob_client(container=BLOB_CONTAINER_NAME, blob=file_name)
     
     with open(file_path, "rb") as data:
         blob_client.upload_blob(data, overwrite=True)
     
-    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{CONTAINER_NAME}/{file_name}"
+    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{BLOB_CONTAINER_NAME}/{file_name}"
     return blob_url
 
 # Google Transcription
@@ -196,7 +209,7 @@ def main():
     # Initialize session state for transcription text
     if "transcription_text" not in st.session_state:
         st.session_state.transcription_text = ""
-
+    
     # Language selection (human-readable names with language codes)
     language_dict = {
         "id-ID": "Indonesian (Indonesia)",
@@ -212,16 +225,17 @@ def main():
     # Get the language code from the selected language
     language_code = list(language_dict.keys())[list(language_dict.values()).index(language_choice)]
 
-    # Option to summarize the transcription
-    st.session_state.summarize_option = st.radio("Do you want to summarize the transcription?", ("No", "Yes"))
+    ## Option to summarize the transcription
+    #st.session_state.summarize_option = st.radio("Do you want to summarize the transcription?", ("No", "Yes"))
 
-    if st.session_state.summarize_option == "Yes":
-        context = st.text_area("Provide additional context (optional)")
-    else:
-        context = ""
+    #if st.session_state.summarize_option == "Yes":
+    context = st.text_area("Provide additional context (optional)", height=68)
+    #else:
+    #    context = ""
 
+    SUPPORTED_FORMATS = ["wav", "mp3", "ogg", "flac", "aac", "webm", "m4a"]
     # Filter to choose file type
-    audio_file = st.file_uploader("Upload an audio file", type=["wav", "mp3", "m4a", "x-m4a", "mp4"])
+    audio_file = st.file_uploader("Upload an audio file", type=SUPPORTED_FORMATS, accept_multiple_files=False)
     #st.write(audio_file.type)
 
     if audio_file: st.audio(audio_file, format=audio_file.type)
@@ -231,7 +245,18 @@ def main():
 
     if audio_file:
         
+        #with tempfile.TemporaryDirectory() as temp_dir:
+        #    file_urls = []
+        #    for file in audio_file:
+        #        temp_file_path = os.path.join(temp_dir, file.name)
+        #        with open(temp_file_path, "wb") as temp_file:
+        #            temp_file.write(file.read())
+        #        if file.name.split(".")[-1].lower() not in SUPPORTED_FORMATS:
+        #            temp_file_path = convert_audio(temp_file_path)
+        #        blob_url = upload_to_blob(temp_file_path, file.name)
+        #        file_urls.append(blob_url)
         
+        ########################################################################################
         if audio_file.type in ["audio/m4a", "audio/x-m4a", "audio/mp4", "video/mp4"]:
             # Convert m4a to wav
             with st.spinner("Converting audio file..."):
@@ -242,6 +267,7 @@ def main():
                 with open(temp_wav_file.name, "wb") as f:
                     f.write(audio_file.getbuffer())
                 audio_file_path = temp_wav_file.name
+        #######################################################################################
 
         # Submit button to trigger the transcription
         if submitted:
@@ -249,9 +275,9 @@ def main():
             #with st.spinner("Uploading audio file..."):
             #    audio_file_url = upload_to_blob_storage(audio_file_path, "temp_audio.wav")
             #st.write('ok')
-
+            
             with st.spinner("Transcribing..."):
-
+                #transcription_result = ''
                 if model_choice == "Azure AI":
                     transcription_result = azure_audio_to_text(audio_file_path, language_code)
                 elif model_choice == "Google Gemini":
@@ -262,14 +288,14 @@ def main():
                 st.text_area("", transcription_result, height=300)
             
             # Check if there was an error in the transcription process
-            if transcription_result:
-                # Display transcription result
-                st.subheader("Extractive Summary & Abstractive Summary")
-
-                if st.session_state.summarize_option == "Yes":
-                    with st.spinner('Summarizing...'):
-                        summary = summarize_transcription(transcription_result, context)
-                    st.text_area("Summary", summary, height=300)
+            #if transcription_result:
+            #    # Display transcription result
+            #    st.subheader("Extractive Summary & Abstractive Summary")
+            #
+            #    #if st.session_state.summarize_option == "Yes":
+            #    with st.spinner('Summarizing...'):
+            #        summary = summarize_transcription(transcription_result, context)
+            #    st.text_area("Summary", summary, height=300)
 
 # Run Streamlit app
 if __name__ == "__main__":
