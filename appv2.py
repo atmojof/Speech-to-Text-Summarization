@@ -1,15 +1,38 @@
 import streamlit as st
+import time
 import whisper
 import tempfile
 import os
 from transformers import pipeline
 from pydub import AudioSegment
+import google.generativeai as genai
 
 # Load the Whisper model globally
-model = whisper.load_model("base")
+model = whisper.load_model("large")
 
 # Load the Hugging Face summarization pipeline
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+#summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+
+# Configure Google API for audio summarization
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+genai.configure(api_key=GOOGLE_API_KEY)
+
+def summarize_text(text):
+    try:
+        # Create a model instance
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
+        
+        # Define the prompt
+        prompt = "Summarize the following text."
+        
+        # Generate content using the model
+        response = model.generate_content(contents=f"{prompt}/n/n{text}")
+        
+        # Extract the summary from the response
+        summary = response.text
+        return summary
+    except Exception as e:
+        return f"An error occurred: {str(e)}"
 
 # Function to split large audio files
 def split_audio(file_path, max_size_mb=25):
@@ -23,7 +46,7 @@ def split_audio(file_path, max_size_mb=25):
     # Split the file into chunks
     chunk_duration_ms = (max_size_bytes / file_size) * len(audio)  # Duration in ms
     chunks = [audio[i:i + int(chunk_duration_ms)] for i in range(0, len(audio), int(chunk_duration_ms))]
-
+ 
     # Save each chunk as a temporary file
     chunk_files = []
     for i, chunk in enumerate(chunks):
@@ -79,24 +102,24 @@ def transcribe_whisper(files):
     return transcription_results.strip()
 
 
-# Function to summarize text using Hugging Face Transformers
-def summarize_text(text):
-    try:
-        # Automatically adjust max_length based on input size
-        max_length = min(150, int(len(text) * 0.3))  # Use 30% of text length for summary length
-        min_length = max(30, int(len(text) * 0.1))  # Use 10% of text length for minimum length
-
-        # Split text into chunks if too long for the model
-        max_chunk_size = 1024
-        text_chunks = [text[i:i + max_chunk_size] for i in range(0, len(text), max_chunk_size)]
-
-        # Summarize each chunk and combine results
-        summarized_chunks = summarizer(text_chunks, max_length=max_length, min_length=min_length, do_sample=False)
-        summary = " ".join([chunk["summary_text"] for chunk in summarized_chunks])
-
-        return summary
-    except Exception as e:
-        return f"Error in summarization: {str(e)}"
+## Function to summarize text using Hugging Face Transformers
+#def summarize_text(text):
+#    try:
+#        # Automatically adjust max_length based on input size
+#        max_length = min(150, int(len(text) * 0.3))  # Use 30% of text length for summary length
+#        min_length = max(30, int(len(text) * 0.1))  # Use 10% of text length for minimum length
+#
+#        # Split text into chunks if too long for the model
+#        max_chunk_size = 1024
+#        text_chunks = [text[i:i + max_chunk_size] for i in range(0, len(text), max_chunk_size)]
+#
+#        # Summarize each chunk and combine results
+#        summarized_chunks = summarizer(text_chunks, max_length=max_length, min_length=min_length, do_sample=False)
+#        summary = " ".join([chunk["summary_text"] for chunk in summarized_chunks])
+#
+#        return summary
+#    except Exception as e:
+#        return f"Error in summarization: {str(e)}"
 
 
 
@@ -127,9 +150,13 @@ def main():
         submitted = st.button("Submit")
 
         if submitted:
+
+            start_time = time.time()
             with st.spinner("Transcribing..."):
-                # Transcribe the audio file and save it in session state
                 st.session_state.transcription_result = transcribe_whisper(audio_files)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            st.write(f"Transcription completed in {elapsed_time:.2f} seconds.")
                 
             if st.session_state.transcription_result:
                 # Display the combined transcription
