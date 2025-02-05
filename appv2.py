@@ -3,20 +3,17 @@ import time
 import whisper
 import tempfile
 import os
-from transformers import pipeline
 from pydub import AudioSegment
 import google.generativeai as genai
 
 # Load the Whisper model globally
-model = whisper.load_model("large")
-
-# Load the Hugging Face summarization pipeline
-#summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+model = whisper.load_model("small")
 
 # Configure Google API for audio summarization
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GOOGLE_API_KEY)
 
+@st.cache_data
 def summarize_text(text):
     try:
         # Create a model instance
@@ -35,6 +32,7 @@ def summarize_text(text):
         return f"An error occurred: {str(e)}"
 
 # Function to split large audio files
+@st.cache_data
 def split_audio(file_path, max_size_mb=25):
     audio = AudioSegment.from_file(file_path)
     max_size_bytes = max_size_mb * 1024 * 1024  # Convert MB to bytes
@@ -101,30 +99,18 @@ def transcribe_whisper(files):
 
     return transcription_results.strip()
 
-
-## Function to summarize text using Hugging Face Transformers
-#def summarize_text(text):
-#    try:
-#        # Automatically adjust max_length based on input size
-#        max_length = min(150, int(len(text) * 0.3))  # Use 30% of text length for summary length
-#        min_length = max(30, int(len(text) * 0.1))  # Use 10% of text length for minimum length
-#
-#        # Split text into chunks if too long for the model
-#        max_chunk_size = 1024
-#        text_chunks = [text[i:i + max_chunk_size] for i in range(0, len(text), max_chunk_size)]
-#
-#        # Summarize each chunk and combine results
-#        summarized_chunks = summarizer(text_chunks, max_length=max_length, min_length=min_length, do_sample=False)
-#        summary = " ".join([chunk["summary_text"] for chunk in summarized_chunks])
-#
-#        return summary
-#    except Exception as e:
-#        return f"Error in summarization: {str(e)}"
-
-
-
-# Streamlit UI =================================================================>
-def main():
+# Function to display the login page
+def login():
+    st.title("Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login"):
+        if username == "researchsml" and password == "bsdserpong":
+            st.session_state.logged_in = True
+            st.success("Logged in successfully")
+        else:
+            st.error("Invalid username or password")
+def app():
     st.title("🔉 Audio Transcription")
 
     # Initialize session state for transcription
@@ -134,7 +120,17 @@ def main():
         st.session_state.summary_result = None
 
     # Input-1: Model selection (currently only Whisper is implemented)
-    model_choice = st.selectbox("Choose Model", ("Whisper", "Azure AI", "Google Gemini"))
+    model_choice = st.selectbox("Choose Model", ("Whisper (Relatively Faster)", "Azure AI (For More Accurate)"))
+
+    # Language selection (human-readable names with language codes)
+    language_dict = {
+        "id-ID": "Indonesian (Indonesia)",
+        "en-US": "English (US)",
+        "es-ES": "Spanish (Spain)",
+        "fr-FR": "French (France)"
+    }
+    language_choice = st.selectbox("Choose Language", list(language_dict.values()))
+    language_code = list(language_dict.keys())[list(language_dict.values()).index(language_choice)]
 
     # Input-2: File uploader
     SUPPORTED_FORMATS = ["wav", "mp3", "ogg", "flac", "aac", "webm", "m4a"]
@@ -146,7 +142,6 @@ def main():
 
     # Submit
     if audio_files: 
-        #st.audio(audio_file, format=audio_file.type)
         submitted = st.button("Submit")
 
         if submitted:
@@ -187,8 +182,15 @@ def main():
                     mime="text/plain"
                 )
 
-    
+# Streamlit UI =================================================================>
+def main():
+    if "logged_in" not in st.session_state:
+        st.session_state.logged_in = False
 
+    if not st.session_state.logged_in:
+        login()
+    else:
+        app()
 
 # Run Streamlit app
 if __name__ == "__main__":
