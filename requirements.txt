@@ -1,0 +1,17 @@
+streamlit
+time
+whisper
+tempfile
+os
+json
+re
+requests
+numpy
+pydub
+azure-cognitiveservices-speech
+futures
+faster_whisper
+langchain
+langchain-community
+huggingface-hub
+transformers

@@ -1,0 +1,31 @@
+cookie:
+  expiry_days: 30
+  key: some_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    firman:
+      email: firmansyah.atmojo@sinarmasland.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: Firmansyah Tri Atmojo
+      password: $2b$12$E9/bCaN/r8sN/FV2l8NpgOgspUBAp7UAVU6BgsXJzp/pW8gQWCprC
+    saras:
+      email: saraswati.sulistyo@sinarmasland.com
+      failed_login_attempts: 0
+      logged_in: false
+      name: Saraswati Sulistyo
+      password: $2b$12$iWlVOac3uujRvTrXDi6wructXftKmo/GyQd6SMu5FmyX306kH.yFO
+oauth2:
+  google:
+    client_id: null
+    client_secret: null
+    redirect_uri: null
+  microsoft:
+    client_id: null
+    client_secret: null
+    redirect_uri: null
+    tenant_id: null
+pre-authorized:
+  emails:
+  - 

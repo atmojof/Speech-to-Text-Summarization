@@ -1,3 +1,0 @@
-Transcription for The Links Golf 1.m4a:
-Error during transcription: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\FIRMAN~1.ATM\\AppData\\Local\\Temp\\tmpp93kazn8.wav'
-
