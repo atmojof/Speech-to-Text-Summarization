@@ -340,7 +340,8 @@ def summarize_text(text_transcription, additional_context):
 # ============================================ MAIN STREAMLIT APP ===============================================
 def main():
     st.title("🔉 Speech-To-Text Summarization")
-
+    st.set_page_config(initial_sidebar_state="expanded")
+    
     # Sidebar for instructions and settings
     with st.sidebar:
         st.header("Instructions")
