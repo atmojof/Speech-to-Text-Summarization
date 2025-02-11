@@ -1,9 +1,5 @@
 streamlit
 whisper
-tempfile
-os
-json
-re
 requests
 numpy
 pydub
