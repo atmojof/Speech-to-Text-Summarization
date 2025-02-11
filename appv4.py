@@ -18,6 +18,8 @@ from langchain_community.llms import Ollama
 from huggingface_hub import InferenceClient
 from transformers import AutoTokenizer
 
+st.set_page_config(initial_sidebar_state="expanded")
+
 
 # ============================================ AZURE SPEECH SDK ===============================================
 # ----------------------------------------------------------------------------- 
@@ -340,7 +342,6 @@ def summarize_text(text_transcription, additional_context):
 # ============================================ MAIN STREAMLIT APP ===============================================
 def main():
     st.title("🔉 Speech-To-Text Summarization")
-    st.set_page_config(initial_sidebar_state="expanded")
     
     # Sidebar for instructions and settings
     with st.sidebar:
