@@ -385,7 +385,7 @@ def main():
     language_choice = st.selectbox("Choose Language", list(language_options.keys()))
     language_code = language_options[language_choice]
 
-    st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Yolla Group in Bali")
+    st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Client")
 
     # ---------------------------------------------- Submission ----------------------------------------------
     if audio_files:
