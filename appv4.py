@@ -374,6 +374,7 @@ def main():
     if model_choice == "Azure AI":
         st.session_state.azure_key = st.text_input("Azure API Key")
         st.session_state.azure_region = st.text_input("Azure API Region")
+        #st.session_state.hf_key = st.text_input("Huggingface API Key")
     
     language_options = {
         "Indonesian": ["id-ID", "id"],
