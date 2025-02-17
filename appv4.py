@@ -280,7 +280,7 @@ def summarizer(txt):
 # -----------------------------------------------------------------------------
 # Summarize transcription results V2.
 # -----------------------------------------------------------------------------
-def summarize_text(text_transcription, additional_context):
+def summarize_text(text_transcription, additional_context, lang):
     # --- Configuration ---
     API_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
     API_URL = f"https://api-inference.huggingface.co/models/{API_MODEL}"
@@ -303,29 +303,29 @@ def summarize_text(text_transcription, additional_context):
             return [{
                 "role": "user",
                 "content": (
-                    f"The context of following text is {additional_context}.\n\n"
-                    f"Summarize the following text in a concise and clear manner.\n\n"
-                    f"Return your response in bullet points which covers the key points of the text.\n\n{text}\n"
-                    )
-                }]
+                    f"The context of the following text is: {additional_context}.\n\n"
+                    f"Summarize the following text in {lang} language in a concise and clear manner.\n\n"
+                    f"Return your response in bullet points covering the key points of the text.\n\n{text}\n"
+                )
+            }]
         elif prompt_type == "first":
             return [{
                 "role": "user",
                 "content": (
-                    f"The context of following text is {additional_context}.\n\n"
-                    f"Summarize the following text in a concise and clear manner and capture all the key points from this section "
+                    f"The context of the following text is: {additional_context}.\n\n"
+                    f"Summarize the following text in {lang} language in a concise and clear manner and capture all the key points from this section "
                     f"with a maximum length of {1/num_chunks:.2f} of the original text.\n\n{text}\n"
-                    )
-                }]
+                )
+            }]
         elif prompt_type == "chunk":
             return [{
                 "role": "user",
                 "content": (
                     f"Based on the provided context: {context}\n\n"
-                    f"Create a concise summary that captures all the key points and main ideas from the following text. "
+                    f"Create a concise summary in {lang} language that captures all the key points and main ideas from the following text. "
                     f"Ensure the summary is clear, coherent, and relevant to the context with a maximum length of {1/num_chunks:.2f} of the original text.\n\n{text}\n"
-                    )
-                }]
+                )
+            }]
 
     # --- Helper: Query the chat API and extract summary ---
     def query_chat(messages):
@@ -426,7 +426,7 @@ def main():
                 # Get list of temporary file paths.
                 temp_file_paths = [temp_path for _, temp_path in temp_file_info]
                 
-                # Get transcription results (a dictionary mapping file path to transcription).
+                # Get transcription results (a dictionary mapping file path to transcription) ---------------------------------------------------------
                 temp_transcription = transcribe_audio(temp_file_paths, language_code, model_choice)
                 
                 # Map transcription results back to original file names.
@@ -467,7 +467,7 @@ def main():
 
         start_time = time.time()
         with st.spinner("Summarizing... Please wait...", show_time=True):
-            st.session_state.summary_result = summarize_text(text_transcription=test_text, additional_context=st.session_state.context)
+            st.session_state.summary_result = summarize_text(text_transcription=test_text, additional_context=st.session_state.context, lang=language_options[language_choice][0])
 
         st.subheader("Summary")
         st.write(f"Processing time: {round(time.time() - start_time, 2)} seconds")
