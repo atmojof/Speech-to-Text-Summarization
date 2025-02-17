@@ -60,8 +60,10 @@ def prepare_audio(file_path, target_ext="mp3", target_channels=1, target_frame_r
 def transcribe_file_az(audio_file_path, lang, AZURE_KEY, AZURE_SERVICE_REGION):
     """
     Transcribes a single audio file using the Azure Speech SDK.
-    For long files (e.g. more than 5 minutes), the audio is split into segments and each segment is transcribed individually.
+    For long files (e.g. more than 5 minutes), the audio is split into segments and each segment is transcribed concurrently.
     The audio is converted to WAV (16kHz, mono) for compatibility with Azure.
+    
+    This version adjusts the timestamps so that each segment’s transcription has an absolute timestamp.
     """
     # Helper to force conversion to WAV (regardless of input extension)
     def convert_to_wav(file_path):
@@ -75,15 +77,16 @@ def transcribe_file_az(audio_file_path, lang, AZURE_KEY, AZURE_SERVICE_REGION):
         print(f"Converted '{file_path}' to WAV: '{temp_wav}'")
         return temp_wav
 
+    # Convert the input audio to WAV.
     prepared_path = convert_to_wav(audio_file_path)
     
-    # Load the prepared WAV file and get its duration (in milliseconds)
+    # Load the prepared WAV file and get its duration in milliseconds.
     audio = AudioSegment.from_file(prepared_path, format="wav")
     duration_ms = len(audio)
     threshold_ms = 5 * 60 * 1000  # 5 minutes in milliseconds
 
-    # Helper: Transcribe one segment file
-    def recognize_segment(segment_path):
+    # Helper: Transcribe one segment file with a given offset (in milliseconds)
+    def recognize_segment(segment_path, chunk_offset_ms):
         speech_config = speechsdk.SpeechConfig(subscription=AZURE_KEY, region=AZURE_SERVICE_REGION)
         speech_config.speech_recognition_language = lang
         speech_config.output_format = speechsdk.OutputFormat.Detailed
@@ -97,10 +100,11 @@ def transcribe_file_az(audio_file_path, lang, AZURE_KEY, AZURE_SERVICE_REGION):
                 result_json = evt.result.json
                 result_dict = json.loads(result_json)
                 recognized_text = result_dict.get("DisplayText", "")
-                offset = result_dict.get("Offset", 0)
-                start_seconds = offset / 10**7
-                start_minutes = int(start_seconds // 60)
-                start_seconds = int(start_seconds % 60)
+                offset = result_dict.get("Offset", 0)  # offset in 100-nanosecond units relative to segment start
+                # Convert offset to seconds and add the chunk's start (in seconds)
+                absolute_seconds = offset / 10**7 + (chunk_offset_ms / 1000)
+                start_minutes = int(absolute_seconds // 60)
+                start_seconds = int(absolute_seconds % 60)
                 seg_transcriptions.append(f"[{start_minutes:02}:{start_seconds:02}] {recognized_text}")
             except Exception as e:
                 seg_transcriptions.append(f"Error parsing result: {e}")
@@ -119,23 +123,39 @@ def transcribe_file_az(audio_file_path, lang, AZURE_KEY, AZURE_SERVICE_REGION):
         recognizer.stop_continuous_recognition()
         return "\n".join(seg_transcriptions)
     
-    # If the audio duration exceeds the threshold, split and process in segments.
+    # Process the audio either as one piece or split into segments.
     if duration_ms > threshold_ms:
         print("Audio is long; splitting into segments...")
-        segment_transcriptions = []
+        segments = []
         for start in range(0, duration_ms, threshold_ms):
             segment = audio[start: start + threshold_ms]
+            segments.append((start, segment))
+        
+        # Define a helper to process one segment.
+        def process_segment(segment_tuple):
+            chunk_offset, seg_audio = segment_tuple
             seg_file = tempfile.mktemp(suffix=".wav")
-            segment.export(seg_file, format="wav")
-            print(f"Processing segment starting at {start/1000:.0f} seconds...")
-            seg_trans = recognize_segment(seg_file)
-            segment_transcriptions.append(seg_trans)
-            os.remove(seg_file)
-        full_transcription = "\n".join(segment_transcriptions)
+            seg_audio.export(seg_file, format="wav")
+            print(f"Processing segment starting at {chunk_offset/1000:.0f} seconds...")
+            seg_trans = recognize_segment(seg_file, chunk_offset)
+            try:
+                os.remove(seg_file)
+            except Exception as e:
+                print(f"Error removing segment file {seg_file}: {e}")
+            return (chunk_offset, seg_trans)
+        
+        # Process all segments concurrently.
+        with concurrent.futures.ThreadPoolExecutor() as seg_executor:
+            futures = [seg_executor.submit(process_segment, seg) for seg in segments]
+            results_list = [fut.result() for fut in concurrent.futures.as_completed(futures)]
+        
+        # Sort segment results by their original start time.
+        results_list.sort(key=lambda x: x[0])
+        full_transcription = "\n".join([trans for _, trans in results_list])
     else:
-        full_transcription = recognize_segment(prepared_path)
+        full_transcription = recognize_segment(prepared_path, 0)
     
-    # Add a short delay to allow file handles to release before deletion.
+    # Allow a short delay for file handles to release before deletion.
     time.sleep(0.5)
     # Clean up the prepared WAV file.
     if os.path.exists(prepared_path):
