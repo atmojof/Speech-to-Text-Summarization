@@ -376,6 +376,8 @@ def main():
         - **Transcription Model**: Azure AI / OpenAI Whisper
         - **Summarization Model**: QwenLM
         """)
+        st.header("Notes")
+        st.markdown("if summarization fails, try saving the transcription then summarize using **ChatGPT** (or Other AI Tools) with following prompt: Summarize the following text (UPLOAD YOUR TXT FILE).")
 
     # Initialize session state variables if not already set.
     if "transcription_result" not in st.session_state: st.session_state.transcription_result = None
