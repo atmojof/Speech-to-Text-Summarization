@@ -456,6 +456,13 @@ def main():
         
         st.subheader("Transcription Results")
         st.text_area("", value=transcription_text, height=400, key="transcription_area")
+        st.download_button(
+            label="Download Summary",
+            data=transcription_text,
+            file_name="summary.txt",
+            mime="text/plain",
+            key="download_transcription"
+        )
     else:
         st.info("No transcription result available yet.")
     
