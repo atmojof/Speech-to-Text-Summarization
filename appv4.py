@@ -11,6 +11,7 @@ import azure.cognitiveservices.speech as speechsdk
 import concurrent.futures
 from faster_whisper import WhisperModel
 from huggingface_hub import InferenceClient
+import logging
 
 st.set_page_config(initial_sidebar_state="expanded")
 
