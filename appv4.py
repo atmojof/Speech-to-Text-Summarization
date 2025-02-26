@@ -458,7 +458,7 @@ def main():
         st.subheader("Summary")
         st.write(f"Processing time: {round(time.time() - start_time, 2)} seconds")
 
-        st.text_area(" ", 
+        st.text_area("Summary", 
                     value=st.session_state.summary_result, 
                     height=300, key="summary_area")
 
