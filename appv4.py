@@ -434,7 +434,7 @@ def main():
             transcription_text += f"{original_filename}:\n{transcription}\n\n"
         
         st.subheader("Transcription Results")
-        st.text_area("", value=transcription_text, height=400, key="transcription_area")
+        st.text_area("Transcription", value=transcription_text, height=400, key="transcription_area")
         st.download_button(
             label="Download Summary",
             data=transcription_text,
