@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-import whisper
 import tempfile
 import os
 import json
@@ -11,12 +10,7 @@ from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
 import concurrent.futures
 from faster_whisper import WhisperModel
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from langchain.prompts import PromptTemplate
-from langchain.chains.llm import LLMChain
-from langchain_community.llms import Ollama
 from huggingface_hub import InferenceClient
-from transformers import AutoTokenizer
 
 st.set_page_config(initial_sidebar_state="expanded")
 
@@ -252,31 +246,6 @@ def transcribe_audio(files, language_code, model_choice):
     else:
         raise ValueError("Unsupported model choice.")
     
-# -----------------------------------------------------------------------------
-# Summarize transcription results.
-# -----------------------------------------------------------------------------
-def summarizer(txt):
-    # Define the summarization prompt template.
-    # This prompt asks the model to summarize the provided text using bullet points.
-    summary_prompt = """
-        Summarise the following text using bullet points:
-        {text}
-        Summary:
-    """
-
-    prompt_template = PromptTemplate(template=summary_prompt, input_variables=["text"])
-
-    # Create an LLM instance using your Qwen model via Ollama.
-    # Adjust the model identifier as needed; here we assume your model is "qwen:1.8b".
-    llm = Ollama(model="qwen:1.8b")
-
-    # Create the LLM chain using the prompt template.
-    llm_chain = LLMChain(llm=llm, prompt=prompt_template)
-
-    # Get the summary by running the chain with the transcription text.
-    summary = llm_chain.run(text=txt)
-    return summary
-
 # -----------------------------------------------------------------------------
 # Summarize transcription results V2.
 # -----------------------------------------------------------------------------
