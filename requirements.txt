@@ -1,6 +1,6 @@
 streamlit
 requests==2.32.3
-numpy=1.26.4
+numpy==1.26.4
 pydub==0.25.1
 azure-cognitiveservices-speech
 faster_whisper==1.1.1
