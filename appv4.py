@@ -518,11 +518,8 @@ def main():
         st.subheader("Summary")
         st.write(f"Processing time: {round(time.time() - start_time, 2)} seconds")
 
-        col1 = st.columns(1)
+        st.markdown(st.session_state.summary_result)
 
-        with col1: 
-            st.markdown(st.session_state.summary_result)
-        
         st.download_button(
             label="Download Summary",
             data=st.session_state.summary_result,
