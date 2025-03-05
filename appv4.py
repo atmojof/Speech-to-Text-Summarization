@@ -10,7 +10,6 @@ from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
 import concurrent.futures
 from faster_whisper import WhisperModel
-from huggingface_hub import InferenceClient
 import logging
 from google import genai
 from google.genai import types
@@ -252,95 +251,6 @@ def transcribe_audio(files, language_code, model_choice):
 # -----------------------------------------------------------------------------
 # Summarize transcription results V2.
 # -----------------------------------------------------------------------------
-def summarize_text(text_transcription, additional_context, lang):
-    # --- Configuration ---
-    API_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-    API_URL = f"https://api-inference.huggingface.co/models/{API_MODEL}"
-    API_KEY = "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"  # Replace with your API key
-    HEADERS = {"Authorization": f"Bearer {API_KEY}"}
-    client = InferenceClient(api_key=API_KEY)
-    marker = "</think>"
-    chunk_size = 13000  # Adjust as needed
-
-    # --- Helper: Extract summary from model output ---
-    def extract_summary(content):
-        pattern = rf"{re.escape(marker)}\s*(.*)"
-        matches = re.findall(pattern, content, re.DOTALL)
-        summary = re.sub(r'\*\*(.*?)\*\*', r'\1', matches[0]) if matches else content
-        return summary.strip()
-
-    # --- Helper: Build prompt messages ---
-    def build_prompt(prompt_type, text, num_chunks=None, context=None):
-        if prompt_type == "final":
-            prompt = (
-                f"The context of the following text is: {additional_context}.\n\n"
-                f"Summarize the following text in {lang} language in a concise and clear manner.\n\n"
-                "Return your response in bullet points covering the key points of the text.\n\n"
-                f"{text}\n"
-            )
-        elif prompt_type == "first":
-            fraction = f"{1/num_chunks:.2f}" if num_chunks and num_chunks > 0 else ""
-            prompt = (
-                f"The context of the following text is: {additional_context}.\n\n"
-                f"Summarize the following text in {lang} language in a concise and clear manner and capture all the key points from this section "
-                f"with a maximum length of {fraction} of the original text.\n\n"
-                f"{text}\n"
-            )
-        elif prompt_type == "chunk":
-            fraction = f"{1/num_chunks:.2f}" if num_chunks and num_chunks > 0 else ""
-            prompt = (
-                f"Based on the provided context: {context}\n\n"
-                f"Create a concise summary in {lang} language that captures all the key points and main ideas from the following text. "
-                f"Ensure the summary is clear, coherent, and relevant to the context with a maximum length of {fraction} of the original text.\n\n"
-                f"{text}\n"
-            )
-        else:
-            prompt = text
-        return [{"role": "user", "content": prompt}]
-
-    # --- Helper: Query the chat API and extract summary ---
-    def query_chat(messages):
-        try:
-            completion = client.chat.completions.create(
-                model=API_MODEL,
-                messages=messages,
-            )
-            content = completion.choices[0].message.content
-            return extract_summary(content)
-        except Exception as e:
-            logging.error(f"Error querying chat API: {e}")
-            raise
-
-    # --- Main Logic ---
-    try:
-        payload = {"inputs": text_transcription}
-        response = requests.post(API_URL, headers=HEADERS, json=payload)
-        response_data = response.json()
-    except Exception as e:
-        logging.error(f"Error calling API URL: {e}")
-        raise RuntimeError(f"Failed to call API: {e}")
-
-    # Check if the API returned an error (e.g., due to text length)
-    if response.status_code == 200 and "error" not in response_data:
-        # Text is small enough to process in one call.
-        return query_chat(build_prompt("final", text_transcription))
-    else:
-        # Text is too large; split it into chunks.
-        summaries = []
-        # Simple chunking by characters (you can improve this to split on sentences/paragraphs if needed).
-        chunks = [text_transcription[i:i + chunk_size] for i in range(0, len(text_transcription), chunk_size)]
-        num_chunks = len(chunks)
-        for i, chunk in enumerate(chunks):
-            if i == 0:
-                messages = build_prompt("first", chunk, num_chunks=num_chunks)
-            else:
-                # Use the previous summary as context for the next chunk.
-                messages = build_prompt("chunk", chunk, num_chunks=num_chunks, context=summaries[-1])
-            summaries.append(query_chat(messages))
-        # Combine the chunk summaries and run a final summarization.
-        combined_summary = " ".join(summaries)
-        return query_chat(build_prompt("final", combined_summary))
-
 def summarize_text2(text_transcription,additional_context, lang, GEMINI_API_KEY):
     prompt = (
         f"The context of the following text is: {additional_context}.\n\n"
