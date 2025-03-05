@@ -12,6 +12,8 @@ import concurrent.futures
 from faster_whisper import WhisperModel
 from huggingface_hub import InferenceClient
 import logging
+from google import genai
+from google.genai import types
 
 st.set_page_config(initial_sidebar_state="expanded")
 
@@ -339,6 +341,61 @@ def summarize_text(text_transcription, additional_context, lang):
         combined_summary = " ".join(summaries)
         return query_chat(build_prompt("final", combined_summary))
 
+def summarize_text2(text_transcription,additional_context, lang, GEMINI_API_KEY):
+    prompt = (
+        f"The context of the following text is: {additional_context}.\n\n"
+        f"Provide a summary in bullet points that includes all key information from the following text in {lang}."
+        f"Ensure the summary is detailed enough to give a clear understanding of the entire content, including main ideas, important details, and relevant conclusions: {text_transcription}"
+
+    )
+    
+    client = genai.Client(
+        api_key=GEMINI_API_KEY,
+    )
+  
+    model = "gemini-2.0-flash"
+    contents = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_text(
+                    text=prompt
+  
+                ),
+            ],
+        ),
+    ]
+    generate_content_config = types.GenerateContentConfig(
+        temperature=1,
+        top_p=0.95,
+        top_k=40,
+        max_output_tokens=8192,
+        response_mime_type="text/plain",
+    )
+  
+    summary = ""
+    for chunk in client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=generate_content_config,
+    ):
+        print(chunk.text, end="")
+        summary = summary + str(chunk.text)
+    response = client.models.generate_content(
+      model= model,
+      contents=contents,
+      config=generate_content_config,
+    )
+  
+    # Extract and print token usage
+    token_usage = response.usage_metadata
+    #print (token_usage)
+    #print("/nToken Usage:")
+    #print(f"Prompt Tokens: {token_usage.prompt_token_count}")
+    #print(f"Completion Tokens: {token_usage.candidates_token_count}")
+    #print(f"Total Tokens: {token_usage.prompt_token_count + token_usage.candidates_token_count}")
+
+    return(summary)
 # ============================================ MAIN STREAMLIT APP ===============================================
 def main():
     st.title("🔉 Audio Summarizer")
@@ -388,6 +445,8 @@ def main():
     language_code = language_options[language_choice]
 
     st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Client")
+
+    #st.session_state.GEMINI_API_KEY = st.text_input("Gemini API KEY")
 
     # ---------------------------------------------- Submission ----------------------------------------------
     if audio_files:
@@ -454,15 +513,16 @@ def main():
 
         start_time = time.time()
         with st.spinner("Summarizing... Please wait...", show_time=True):
-            st.session_state.summary_result = summarize_text(text_transcription=test_text, additional_context=st.session_state.context, lang=language_options[language_choice][0])
+            st.session_state.summary_result = summarize_text2(text_transcription=test_text, additional_context=st.session_state.context, lang=language_options[language_choice][0], GEMINI_API_KEY='AIzaSyDkOs064r7mupvM8yUbX9nMV2vi2r6_1y8')
 
         st.subheader("Summary")
         st.write(f"Processing time: {round(time.time() - start_time, 2)} seconds")
 
-        st.text_area("Summary", 
-                    value=st.session_state.summary_result, 
-                    height=300, key="summary_area")
+        col1 = st.columns(1)
 
+        with col1: 
+            st.markdown(st.session_state.summary_result)
+        
         st.download_button(
             label="Download Summary",
             data=st.session_state.summary_result,
