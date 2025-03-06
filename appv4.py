@@ -39,7 +39,9 @@ def create_docx_from_text(summary_text, transcription_text):
 
             # Atur indentasi untuk sub-bullet
             if indent_level >= 2:
-                left_indent = doc.styles['Normal'].paragraph_format.left_indent or 0
+                left_indent = doc.styles['Normal'].paragraph_format.left_indent
+                if left_indent is None:
+                    left_indent = 0
                 paragraph.paragraph_format.left_indent = left_indent + 914400 * (indent_level - 1)
 
             content = line.strip()[2:]
