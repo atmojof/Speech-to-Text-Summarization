@@ -355,7 +355,7 @@ def main():
         """)
         st.header("Settings")
         st.markdown("""
-        - **Transcription Model**: Azure AI / OpenAI Whisper
+        - **Transcription Model**: Azure AI / Whisper
         - **Summarization Model**: Gemini
         """)
         st.header("Notes")
