@@ -14,32 +14,43 @@ import logging
 from google import genai
 from google.genai import types
 from docx import Document
+from io import BytesIO
 
 st.set_page_config(initial_sidebar_state="expanded")
 
 def create_docx_from_text(text):
     doc = Document()
-    doc.add_heading("Summary", level=1)
 
-    lines = text.split("\n")
+    for line in text.split("\n"):
+        if not line.strip():
+            continue
 
-    for line in lines:
-        if line.startswith("**") and line.endswith("**:"):
-            # Menangkap teks tebal di awal sebagai heading
-            doc.add_heading(line.strip("*"), level=2)
-        elif line.startswith("*") and "**" in line:
-            # Menangkap bullet point dan teks tebal
-            bullet, bold_text, content = line.split("**", 2)
-            p = doc.add_paragraph()
-            p.add_run("\u2022 ").bold = True  # Menambahkan bullet point
-            p.add_run(bold_text.strip() + " ").bold = True
-            p.add_run(content.strip())
+        # Tambahkan bullet point jika ada "* " atau sub-bullet "    * "
+        if line.startswith("    * "):
+            paragraph = doc.add_paragraph("         ○ ")
+            content = line.strip()[2:]
+        elif line.startswith("* "):
+            paragraph = doc.add_paragraph("● ")
+            content = line.strip()[2:]
         else:
-            doc.add_paragraph(line)
+            paragraph = doc.add_paragraph()
+            content = line.strip()
 
-    file_path = "summary.docx"
-    doc.save(file_path)
-    return file_path
+        # Proses teks dengan ** menjadi bold
+        while "**" in content:
+            pre, bold, content = content.split("**", 2)
+            paragraph.add_run(pre)
+            paragraph.add_run(bold).bold = True
+
+        # Tambahkan teks yang tersisa
+        paragraph.add_run(content)
+
+    # Menyimpan ke buffer di memori
+    docx_buffer = BytesIO()
+    doc.save(docx_buffer)
+    docx_buffer.seek(0)
+
+    return docx_buffer
 
 # ============================================ AZURE SPEECH SDK ===============================================
 # ----------------------------------------------------------------------------- 
@@ -455,25 +466,19 @@ def main():
 
         st.markdown(st.session_state.summary_result)
 
-        # # Buat file DOCX dari hasil ringkasan
-        docx_file_path = create_docx_from_text(st.session_state.summary_result)
+        if st.session_state.get("summary_result") and st.button("Download Summary"):
+            docx_file = create_docx_from_text(st.session_state.summary_result)
 
-        # Baca file DOCX sebagai byte stream untuk diunduh
-        with open(docx_file_path, "rb") as f:
-            docx_data = f.read()
+            st.download_button(
+                label="Download Summary",
+                data=docx_file.getvalue(),
+                file_name="summary.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                key="download_summary"
+            )
 
-        st.download_button(
-            label="Download Summary",
-            data=docx_data,
-            file_name="summary.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            key="download_summary"
-        )
 
-        #os.remove("./temp_transcription.txt")
-        #os.remove("./summary.docx")
 
-            
     # ---------------------------------------------------------------- ************** -------------------------------------------------------------
 
 if __name__ == "__main__":
