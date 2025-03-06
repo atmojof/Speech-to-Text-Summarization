@@ -32,13 +32,16 @@ def create_docx_from_text(summary_text, transcription_text):
         indent_level = (len(line) - len(line.lstrip())) // 4
 
         # Tentukan bullet point dan level indentasi
-        if indent_level == 1 and line.lstrip().startswith("* "):
-            paragraph = doc.add_paragraph("● ")
-            content = line.strip()[2:]
-        elif indent_level == 2 and line.lstrip().startswith("* "):
-            paragraph = doc.add_paragraph("○ ")
-            left_indent = doc.styles['Normal'].paragraph_format.left_indent or 0
-            paragraph.paragraph_format.left_indent = left_indent + 914400
+        if line.lstrip().startswith("* "):
+            bullet_symbol = "● " if indent_level == 1 else "○ "
+
+            paragraph = doc.add_paragraph(bullet_symbol)
+
+            # Atur indentasi untuk sub-bullet
+            if indent_level >= 2:
+                left_indent = doc.styles['Normal'].paragraph_format.left_indent or 0
+                paragraph.paragraph_format.left_indent = left_indent + 914400 * (indent_level - 1)
+
             content = line.strip()[2:]
         else:
             paragraph = doc.add_paragraph()
@@ -52,6 +55,9 @@ def create_docx_from_text(summary_text, transcription_text):
 
         # Tambahkan teks yang tersisa
         paragraph.add_run(content)
+
+    # Tambahkan page break sebelum Transcription Result
+    doc.add_page_break()
 
     # Tambahkan judul Transcription Result
     doc.add_heading("Transcription Result", level=1)
@@ -481,7 +487,7 @@ def main():
         st.markdown(st.session_state.summary_result)
 
         if st.session_state.get("summary_result") and st.session_state.get("transcription_result") and st.button("Download Summary"):
-            docx_file = create_docx_from_text(st.session_state.summary_result, st.session_state.transcription_result)
+            docx_file = create_docx_from_text(st.session_state.summary_result, transcription_text)
 
             st.download_button(
                 label="Download Summary",
