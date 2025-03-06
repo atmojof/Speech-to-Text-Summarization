@@ -18,16 +18,20 @@ from io import BytesIO
 
 st.set_page_config(initial_sidebar_state="expanded")
 
-def create_docx_from_text(text):
+def create_docx_from_text(summary_text, transcription_text):
     doc = Document()
 
-    for line in text.split("\n"):
+    # Tambahkan judul Summary
+    doc.add_heading("Summary", level=1)
+
+    for line in summary_text.split("\n"):
         if not line.strip():
             continue
 
         # Tambahkan bullet point jika ada "* " atau sub-bullet "    * "
         if line.startswith("    * "):
-            paragraph = doc.add_paragraph("         ○ ")
+            paragraph = doc.add_paragraph("○ ")
+            paragraph.paragraph_format.left_indent = doc.styles['Normal'].paragraph_format.left_indent + 457200  # Indent sub-bullet
             content = line.strip()[2:]
         elif line.startswith("* "):
             paragraph = doc.add_paragraph("● ")
@@ -38,12 +42,19 @@ def create_docx_from_text(text):
 
         # Proses teks dengan ** menjadi bold
         while "**" in content:
-            pre, bold, content = content.split("**", 2)
+            pre, bold, content = content.partition("**")[::2]
             paragraph.add_run(pre)
-            paragraph.add_run(bold).bold = True
+            if bold:
+                paragraph.add_run(bold).bold = True
 
         # Tambahkan teks yang tersisa
         paragraph.add_run(content)
+
+    # Tambahkan judul Transcription Result
+    doc.add_heading("Transcription Result", level=1)
+
+    # Tambahkan isi transcription_result
+    doc.add_paragraph(transcription_text)
 
     # Menyimpan ke buffer di memori
     docx_buffer = BytesIO()
@@ -466,8 +477,8 @@ def main():
 
         st.markdown(st.session_state.summary_result)
 
-        if st.session_state.get("summary_result") and st.button("Download Summary"):
-            docx_file = create_docx_from_text(st.session_state.summary_result)
+        if st.session_state.get("summary_result") and st.session_state.get("transcription_result") and st.button("Download Summary"):
+            docx_file = create_docx_from_text(st.session_state.summary_result, st.session_state.transcription_result)
 
             st.download_button(
                 label="Download Summary",
