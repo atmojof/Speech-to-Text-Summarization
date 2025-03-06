@@ -13,9 +13,33 @@ from faster_whisper import WhisperModel
 import logging
 from google import genai
 from google.genai import types
+from docx import Document
 
 st.set_page_config(initial_sidebar_state="expanded")
 
+def create_docx_from_text(text):
+    doc = Document()
+    doc.add_heading("Summary", level=1)
+
+    lines = text.split("\n")
+
+    for line in lines:
+        if line.startswith("**") and line.endswith("**:"):
+            # Menangkap teks tebal di awal sebagai heading
+            doc.add_heading(line.strip("*"), level=2)
+        elif line.startswith("*") and "**" in line:
+            # Menangkap bullet point dan teks tebal
+            bullet, bold_text, content = line.split("**", 2)
+            p = doc.add_paragraph()
+            p.add_run("\u2022 ").bold = True  # Menambahkan bullet point
+            p.add_run(bold_text.strip() + " ").bold = True
+            p.add_run(content.strip())
+        else:
+            doc.add_paragraph(line)
+
+    file_path = "summary.docx"
+    doc.save(file_path)
+    return file_path
 
 # ============================================ AZURE SPEECH SDK ===============================================
 # ----------------------------------------------------------------------------- 
@@ -422,21 +446,31 @@ def main():
             test_text = f.read()
 
         start_time = time.time()
-        with st.spinner("Summarizing... Please wait...", show_time=True):
-            st.session_state.summary_result = summarize_text2(text_transcription=test_text, additional_context=st.session_state.context, lang=language_options[language_choice][0], GEMINI_API_KEY='AIzaSyDkOs064r7mupvM8yUbX9nMV2vi2r6_1y8')
+        if st.session_state.summary_result is None:
+            with st.spinner("Summarizing... Please wait...", show_time=True):
+                st.session_state.summary_result = summarize_text2(text_transcription=test_text, additional_context=st.session_state.context, lang=language_options[language_choice][0], GEMINI_API_KEY='AIzaSyDkOs064r7mupvM8yUbX9nMV2vi2r6_1y8')
 
         st.subheader("Summary")
         st.write(f"Processing time: {round(time.time() - start_time, 2)} seconds")
 
         st.markdown(st.session_state.summary_result)
 
+        # # Buat file DOCX dari hasil ringkasan
+        docx_file_path = create_docx_from_text(st.session_state.summary_result)
+
+        # Baca file DOCX sebagai byte stream untuk diunduh
+        with open(docx_file_path, "rb") as f:
+            docx_data = f.read()
+
         st.download_button(
             label="Download Summary",
-            data=st.session_state.summary_result,
-            file_name="summary.txt",
-            mime="text/plain",
+            data=docx_data,
+            file_name="summary.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             key="download_summary"
         )
+
+            
     # ---------------------------------------------------------------- ************** -------------------------------------------------------------
 
 if __name__ == "__main__":
