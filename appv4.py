@@ -31,21 +31,20 @@ def create_docx_from_text(summary_text, transcription_text):
         # Tambahkan bullet point jika ada "* " atau sub-bullet "    * "
         if line.startswith("    * "):
             paragraph = doc.add_paragraph("○ ")
-            paragraph.paragraph_format.left_indent = doc.styles['Normal'].paragraph_format.left_indent + 457200  # Indent sub-bullet
-            content = line.strip()[2:]
+            paragraph.paragraph_format.left_indent = doc.styles['Normal'].paragraph_format.left_indent + 914400  # Indent sub-bullet
+            content = line.strip()[6:]  # Hilangkan "    * "
         elif line.startswith("* "):
             paragraph = doc.add_paragraph("● ")
-            content = line.strip()[2:]
+            content = line.strip()[2:]  # Hilangkan "* "
         else:
             paragraph = doc.add_paragraph()
             content = line.strip()
 
         # Proses teks dengan ** menjadi bold
         while "**" in content:
-            pre, bold, content = content.partition("**")[::2]
+            pre, bold, content = content.split("**", 2)
             paragraph.add_run(pre)
-            if bold:
-                paragraph.add_run(bold).bold = True
+            paragraph.add_run(bold).bold = True
 
         # Tambahkan teks yang tersisa
         paragraph.add_run(content)
