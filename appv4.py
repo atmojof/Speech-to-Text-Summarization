@@ -354,7 +354,7 @@ def main():
     language_choice = st.selectbox("Choose Language", list(language_options.keys()))
     language_code = language_options[language_choice]
 
-    st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Client")
+    st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Property Agent regarding Project A,B and C in Jakarta, Makassar and Bali")
 
     #st.session_state.GEMINI_API_KEY = st.text_input("Gemini API KEY")
 
