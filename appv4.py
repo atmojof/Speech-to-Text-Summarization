@@ -28,14 +28,18 @@ def create_docx_from_text(summary_text, transcription_text):
         if not line.strip():
             continue
 
-        # Tambahkan bullet point jika ada "* " atau sub-bullet "    * "
-        if line.startswith("    * "):
-            paragraph = doc.add_paragraph("○ ")
-            paragraph.paragraph_format.left_indent = doc.styles['Normal'].paragraph_format.left_indent + 914400  # Indent sub-bullet
-            content = line.strip()[6:]  # Hilangkan "    * "
-        elif line.startswith("* "):
+        # Hitung indentasi berdasarkan jumlah spasi di awal baris
+        indent_level = (len(line) - len(line.lstrip())) // 4
+
+        # Tentukan bullet point dan level indentasi
+        if indent_level == 1 and line.lstrip().startswith("* "):
             paragraph = doc.add_paragraph("● ")
-            content = line.strip()[2:]  # Hilangkan "* "
+            content = line.strip()[2:]
+        elif indent_level == 2 and line.lstrip().startswith("* "):
+            paragraph = doc.add_paragraph("○ ")
+            left_indent = doc.styles['Normal'].paragraph_format.left_indent or 0
+            paragraph.paragraph_format.left_indent = left_indent + 914400
+            content = line.strip()[2:]
         else:
             paragraph = doc.add_paragraph()
             content = line.strip()
