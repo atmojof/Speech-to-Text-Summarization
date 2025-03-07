@@ -15,64 +15,49 @@ from google import genai
 from google.genai import types
 from docx import Document
 from io import BytesIO
+from xhtml2pdf import pisa
 
 st.set_page_config(initial_sidebar_state="expanded")
 
-def create_docx_from_text(summary_text, transcription_text):
-    doc = Document()
+def export_to_pdf(html_string):
+    pdf_buffer = BytesIO()
+    pisa_status = pisa.CreatePDF(html_string, dest=pdf_buffer)
+    if pisa_status.err:
+        return None
+    pdf_buffer.seek(0)
+    return pdf_buffer
 
-    # Tambahkan judul Summary
-    doc.add_heading("Summary", level=1)
+def format_summary(summary_text):
+    lines = summary_text.split('\n')
+    formatted_lines = []
+    in_list = False
+    for line in lines:
+        line = line.strip()  # Hapus spasi berlebih
+        if line.startswith('* '):
+            if not in_list:
+                formatted_lines.append('<ul>')
+                in_list = True
+            # Mengganti **teks** dengan <strong>teks</strong> di dalam item list
+            line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+            formatted_lines.append(f'<li>{line[2:]}</li>')
+        elif line:  # Hanya tambahkan baris jika tidak kosong
+            if in_list:
+                formatted_lines.append('</ul>')
+                in_list = False
+            # Mengganti **teks** dengan <strong>teks</strong> di luar item list
+            line = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', line)
+            formatted_lines.append(line)
+    if in_list:
+        formatted_lines.append('</ul>')
+    # Gabungkan baris dengan <br> hanya jika bukan list, jika list jangan tambahkan <br>
+    final_result = []
+    for item in formatted_lines:
+        if "<li>" in item or "<ul>" in item or "</ul>" in item :
+            final_result.append(item)
+        elif item.strip() != "": # Hanya tambahkan baris jika tidak kosong
+            final_result.append(item + "<br>")
 
-    for line in summary_text.split("\n"):
-        if not line.strip():
-            continue
-
-        # Hitung indentasi berdasarkan jumlah spasi di awal baris
-        indent_level = (len(line) - len(line.lstrip())) // 4
-
-        # Tentukan bullet point dan level indentasi
-        if line.lstrip().startswith("* "):
-            bullet_symbol = "● " if indent_level == 1 else "○ "
-
-            paragraph = doc.add_paragraph(bullet_symbol)
-
-            # Atur indentasi untuk sub-bullet
-            if indent_level >= 2:
-                left_indent = doc.styles['Normal'].paragraph_format.left_indent
-                if left_indent is None:
-                    left_indent = 0
-                paragraph.paragraph_format.left_indent = left_indent + 914400 * (indent_level - 1)
-
-            content = line.strip()[2:]
-        else:
-            paragraph = doc.add_paragraph()
-            content = line.strip()
-
-        # Proses teks dengan ** menjadi bold
-        while "**" in content:
-            pre, bold, content = content.split("**", 2)
-            paragraph.add_run(pre)
-            paragraph.add_run(bold).bold = True
-
-        # Tambahkan teks yang tersisa
-        paragraph.add_run(content)
-
-    # Tambahkan page break sebelum Transcription Result
-    doc.add_page_break()
-
-    # Tambahkan judul Transcription Result
-    doc.add_heading("Transcription Result", level=1)
-
-    # Tambahkan isi transcription_result
-    doc.add_paragraph(transcription_text)
-
-    # Menyimpan ke buffer di memori
-    docx_buffer = BytesIO()
-    doc.save(docx_buffer)
-    docx_buffer.seek(0)
-
-    return docx_buffer
+    return '\n'.join(final_result)
 
 # ============================================ AZURE SPEECH SDK ===============================================
 # ----------------------------------------------------------------------------- 
@@ -378,7 +363,7 @@ def main():
         st.header("Settings")
         st.markdown("""
         - **Transcription Model**: Azure AI / Whisper
-        - **Summarization Model**: Gemini
+        - **Summarization Model**: Gemini AI
         """)
         st.header("Notes")
         st.markdown("if summarization fails, try saving the transcription then summarize using **ChatGPT** (or Other AI Tools) with following prompt: Summarize the following text (UPLOAD YOUR TXT FILE).")
@@ -408,9 +393,12 @@ def main():
         "Indonesian": ["id-ID", "id"],
         "English": ["en-US", "en"]
     }
-    language_choice = st.selectbox("Choose Language", list(language_options.keys()))
+    
+    language_choice = st.pills("Choose Language", list(language_options.keys()), selection_mode="single", default='Indonesian')
+
     language_code = language_options[language_choice]
 
+    
     st.session_state.context = st.text_input("Add context about this audio recording (Optional)", placeholder = "e.g. Interview with Property Agent regarding Project A,B and C in Jakarta, Makassar and Bali")
 
     #st.session_state.GEMINI_API_KEY = st.text_input("Gemini API KEY")
@@ -462,13 +450,13 @@ def main():
         
         st.subheader("Transcription Results")
         st.text_area("Transcription", value=transcription_text, height=400, key="transcription_area")
-        st.download_button(
-            label="Download Summary",
-            data=transcription_text,
-            file_name="summary.txt",
-            mime="text/plain",
-            key="download_transcription"
-        )
+        #st.download_button(
+        #    label="Download Summary",
+        #    data=transcription_text,
+        #    file_name="summary.txt",
+        #    mime="text/plain",
+        #    key="download_transcription"
+        #)
     else:
         st.info("No transcription result available yet.")
     
@@ -488,17 +476,62 @@ def main():
 
         st.markdown(st.session_state.summary_result)
 
-        if st.session_state.get("summary_result") and st.session_state.get("transcription_result") and st.button("Download Summary"):
-            docx_file = create_docx_from_text(st.session_state.summary_result, transcription_text)
+        if st.session_state.get("summary_result") and st.session_state.get("transcription_result") and st.button("Create Download Link"):
+            formatted_summary = format_summary(st.session_state.summary_result)
+            formatted_transcription = transcription_text.replace('\n', '<br>')
 
-            st.download_button(
-                label="Download Summary",
-                data=docx_file.getvalue(),
-                file_name="summary.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                key="download_summary"
-            )
+            all_text_download = f"""
+            <html>
+            <head>
+            <style>
+                body {{
+                    font-family: Calibri, sans-serif;
+                    font-size: 12px;
+                    text-align: justify;
+                    position: relative;
+                }}
+                h1 {{
+                    color: #45b6fe;
+                    font-size: 24px;
+                    margin-bottom: 5px; /* Kurangi margin bawah */
+                }}
+                p {{
+                    margin: 0;
+                    line-height: 1.2;
+                    font-size: 11px;
+                }}
+                .container {{
+                    margin-left: 2.15cm;
+                    margin-right: 1.75cm;
+                }}
+                .page-break {{ page-break-before: always; }}
+            </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Summary of Audio File(s)</h1>
+                    <p><i>Developed by Market Research & Product Strategy Division; Transcription by {model_choice}; Summary by Gemini AI</i></p><br>
+                    {formatted_summary}
+                    <div class="page-break"></div>
+                    <h1>Transcription Result</h1>
+                    {formatted_transcription}
+                </div>
+            </body>
+            </html>
+            """
 
+            pdf_buffer = export_to_pdf(all_text_download)
+
+            if pdf_buffer: # Check if pdf_buffer is not None (no error during PDF creation)
+                st.download_button(
+                    label="Download Summary (PDF)",
+                    data=pdf_buffer.getvalue(),
+                    file_name="summary.pdf",
+                    mime="application/pdf",
+                    key="download_summary_pdf"
+                )
+            else:
+                st.error("Error generating PDF. Please check the summary content.") # added error handling.
 
 
     # ---------------------------------------------------------------- ************** -------------------------------------------------------------
