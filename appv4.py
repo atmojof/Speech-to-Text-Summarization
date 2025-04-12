@@ -390,12 +390,72 @@ def main():
         #st.session_state.hf_key = st.text_input("Huggingface API Key")
     
     language_options = {
+        "Afrikaans": ["af-ZA", "af"],
+        "Amharic": ["am-ET", "am"],
+        "Arabic": ["ar-SA", "ar"],
+        "Bengali": ["bn-IN", "bn"],
+        "Bulgarian": ["bg-BG", "bg"],
+        "Catalan": ["ca-ES", "ca"],
+        "Chinese (Simplified)": ["zh-CN", "zh"],
+        "Chinese (Traditional)": ["zh-HK", "zh"],
+        "Croatian": ["hr-HR", "hr"],
+        "Czech": ["cs-CZ", "cs"],
+        "Danish": ["da-DK", "da"],
+        "Dutch": ["nl-NL", "nl"],
+        "English": ["en-US", "en"],
+        "Estonian": ["et-EE", "et"],
+        "Filipino": ["fil-PH", "fil"],
+        "Finnish": ["fi-FI", "fi"],
+        "French": ["fr-FR", "fr"],
+        "German": ["de-DE", "de"],
+        "Greek": ["el-GR", "el"],
+        "Gujarati": ["gu-IN", "gu"],
+        "Hebrew": ["he-IL", "he"],
+        "Hindi": ["hi-IN", "hi"],
+        "Hungarian": ["hu-HU", "hu"],
+        "Icelandic": ["is-IS", "is"],
         "Indonesian": ["id-ID", "id"],
-        "English": ["en-US", "en"]
+        "Italian": ["it-IT", "it"],
+        "Japanese": ["ja-JP", "ja"],
+        "Kannada": ["kn-IN", "kn"],
+        "Korean": ["ko-KR", "ko"],
+        "Latvian": ["lv-LV", "lv"],
+        "Lithuanian": ["lt-LT", "lt"],
+        "Malay": ["ms-MY", "ms"],
+        "Malayalam": ["ml-IN", "ml"],
+        "Marathi": ["mr-IN", "mr"],
+        "Norwegian": ["nb-NO", "no"],
+        "Polish": ["pl-PL", "pl"],
+        "Portuguese": ["pt-PT", "pt"],
+        "Portuguese (Brazil)": ["pt-BR", "pt"],
+        "Punjabi": ["pa-IN", "pa"],
+        "Romanian": ["ro-RO", "ro"],
+        "Russian": ["ru-RU", "ru"],
+        "Serbian": ["sr-RS", "sr"],
+        "Slovak": ["sk-SK", "sk"],
+        "Slovenian": ["sl-SI", "sl"],
+        "Spanish": ["es-ES", "es"],
+        "Spanish (Mexico)": ["es-MX", "es"],
+        "Swahili": ["sw-KE", "sw"],
+        "Swedish": ["sv-SE", "sv"],
+        "Tamil": ["ta-IN", "ta"],
+        "Telugu": ["te-IN", "te"],
+        "Thai": ["th-TH", "th"],
+        "Turkish": ["tr-TR", "tr"],
+        "Ukrainian": ["uk-UA", "uk"],
+        "Urdu": ["ur-IN", "ur"],
+        "Vietnamese": ["vi-VN", "vi"]
     }
-    
-    language_choice = st.pills("Choose Language", list(language_options.keys()), selection_mode="single", default='Indonesian')
 
+    
+    
+    #language_choice = st.pills("Choose Language", list(language_options.keys()), selection_mode="single", default='Indonesian')
+    language_choice = st.selectbox(
+        "Choose Language",
+        list(language_options.keys()),
+        index=list(language_options.keys()).index("Indonesian")  # default
+    )
+    
     language_code = language_options[language_choice]
 
     
