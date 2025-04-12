@@ -498,8 +498,27 @@ def main():
                     f.write(transcription_text)
 
                 st.session_state.transcription_time = round(time.time() - start_time, 2)
-            
-        st.write(f"Processing time: {st.session_state.transcription_time} seconds")
+
+        # Print Proc Time
+        time_in_seconds = st.session_state.transcription_time
+        time_in_seconds = int(round(time_in_seconds))
+        
+        if time_in_seconds >= 60:
+            minutes = time_in_seconds // 60
+            seconds = time_in_seconds % 60
+        
+            minute_label = "minute" if minutes == 1 else "minutes"
+            second_label = "second" if seconds == 1 else "seconds"
+        
+            if seconds > 0:
+                st.write(f"Processing time: {minutes} {minute_label} {seconds} {second_label}")
+            else:
+                st.write(f"Processing time: {minutes} {minute_label}")
+        else:
+            second_label = "second" if time_in_seconds == 1 else "seconds"
+            st.write(f"Processing time: {time_in_seconds} {second_label}")
+
+
     
     # Display transcription results.
     if st.session_state.transcription_result is not None:
