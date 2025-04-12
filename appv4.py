@@ -386,9 +386,7 @@ def main():
     model_choice = st.selectbox("Choose Model", ("Azure AI", "Whisper"))
     if model_choice == "Azure AI":
         st.session_state.azure_key = st.text_input("Azure API Key", type="password", key="azure_api_key")
-        #st.session_state.azure_key = st.text_input("Azure API Key")
-        st.session_state.azure_region = st.text_input("Azure API Region")
-        #st.session_state.hf_key = st.text_input("Huggingface API Key")
+        st.session_state.azure_region = st.text_input("Azure API Region", type="password")
     
     language_options = {
         "Afrikaans": ["af-ZA", "af"],
