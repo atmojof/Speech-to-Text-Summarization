@@ -4,6 +4,7 @@
 
 The **Audio Summarizer** is a web-based application that allows users to upload audio files, automatically transcribe them, and generate concise summaries of the audio content. It supports multiple audio formats and leverages advanced AI models for transcription and summarization.  
 
+Live demo: https://audio-summarizer.streamlit.app 
 ---
 
 ## ✨ Key Features  
